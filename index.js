@@ -24,55 +24,109 @@ app.use(express.json());
 // .patch()  --> utamanya "menambal" data yang sudah ada di dalam server 
 // .delete() --> utamanya Menghapus data yang didalam server
 
-app.post(
-    '/chat', //http://localhost:[PORT]/chat
-    async(req, res) => {
-        const {body} = req;
-        const {prompt} = body;
-    
-        // Guard Clause
-        if(!prompt || typeof prompt !== 'string'){
-            res.status(400).json({
-                message: "Prompt harus diisi dan berupa string!",
-                data: null,
-                success: false
-            });
-            return;
+// 1. Generate Text
+    app.post('/generate-text', //http://localhost:[PORT]/chat
+            async(req, res) => {
+            const {body} = req;
+            const {prompt} = body;
+        
+            // Guard Clause
+            if(!prompt || typeof prompt !== 'string'){
+                res.status(400).json({
+                    message: "Prompt harus diisi dan berupa string!",
+                    data: null,
+                    success: false
+                });
+                return;
+            }
+        
+            try {
+                // 3rd party API -- Google AI
+                const aiResponse = await ai.models.generateContent({
+                    model : 'gemini-2.5-flash',
+                    contents: [
+                        {
+                            parts: [
+                                {text: prompt}
+                            ]
+                        }
+                    ]
+                });
+
+                res.status(200).json({
+                    success: true,
+                    data: aiResponse.text,
+                    message: "Berhasil ditanggapi oleh google Gemini Flash!"
+                })
+            } catch (e) {
+                console.log(e);
+                res.status(500).json({
+                    success: false,
+                    data: null,
+                    message: e.message || "ada masalah di server!"
+                })
+            }
         }
-    
+    );
+
+// 2.Generate From Image
+app.post('/generate-from-image', upload.single('image'), async (req, res) => {
         try {
-            // 3rd party API -- Google AI
-            const aiResponse = await ai.models.generateContent({
-                model : 'gemini-2.5-flash',
+            const { prompt } = req.body;
+            const imageBase64 = req.file.buffer.toString('base64');
+            const resp = await ai.models.generateContent({
+                model: GEMINI_MODEL,
                 contents: [
-                    {
-                        parts: [
-                            {text: prompt}
-                        ]
-                    }
-                ]
-            });
-
-            res.status(200).json({
-                success: true,
-                data: aiResponse.text,
-                message: "Berhasil ditanggapi oleh google Gemini Flash!"
-            })
-        } catch (e) {
-            console.log(e);
-            res.status(500).json({
-                success: false,
-                data: null,
-                message: e.message || "ada masalah di server!"
-            })
+                        { text: prompt },
+                        { inlineData: { mimeType: req.file.mimetype, data: imageBase64 } }
+                    ]
+                });
+                res.json({ result: extractText(resp) });
+        } catch (err) {
+            res.status (500).json({ error: err.message });
         }
-    }
-);
+});
 
+// 3. Gegenerate Uploaded Documents
+app.post('/generate-from-document', upload.single('document'), async (req, res) => {
+    try {
+    const { prompt } = req.body;
+    const imageBase64 = req.file.buffer.toString('base64');
+    const resp = await ai.models.generateContent({
+        model: GEMINI_MODEL,
+        contents: [
+                { text: prompt || "Ringkas Dokumen Berikut : "},
+                { inlineData: { mimeType: req.file.mimetype, data: docBase64 } }
+            ]
+        });
+        res.json({ result: extractText(resp) });
+    } catch (err) {
+        res.status (500).json({ error: err.message });
+     }
+});
+
+// 4.Generate Uploaded Audio
+app.post('/generate-from-audio', upload.single('audio'), async (req, res) => {
+        try {
+            const { prompt } = req.body;
+            const imageBase64 = req.file.buffer.toString('base64');
+            const resp = await ai.models.generateContent({
+                model: GEMINI_MODEL,
+                contents: [
+                        { text: prompt || "Ringkas Audio Berikut : "},
+                        { inlineData: { mimeType: req.file.mimetype, data: audioBase64 } }
+                    ]
+                });
+                res.json({ result: extractText(resp) });
+        } catch (err) {
+            res.status (500).json({ error: err.message });
+        }
+});
+
+// Handler Testing Work or Not
 app.listen(3000, () => {
-    console.log("aishiteru!");
-})
-
+    console.log("Testing Success! Enjoy!!!");
+});
 
 // const GEMINI_MODEL = "gemini";
 
